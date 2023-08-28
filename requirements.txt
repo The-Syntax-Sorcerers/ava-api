@@ -1,0 +1,10 @@
+
+# ML Dependencies
+tensorflow
+numpy
+tqdm
+nltk
+gensim
+
+# Api Dependencies
+fastapi
