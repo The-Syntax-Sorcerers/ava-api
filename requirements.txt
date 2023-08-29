@@ -1,12 +1,11 @@
 
 # ML Dependencies
-tensorflow
-numpy
-tqdm
-nltk
-gensim
+# tensorflow
+# numpy
+# tqdm
+# nltk
+# gensim
 
 # Api Dependencies
-flask
-uvicorn
-mangum
+fastapi
+# uvicorn
