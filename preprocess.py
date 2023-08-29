@@ -1,76 +1,67 @@
 import os
 import json
-import sys
-import json
 import nltk
-import string
-
+from tqdm import tqdm
 import glob
 import numpy as np
-from tqdm import tqdm
-
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
-from gensim.models import Word2Vec
 
-# from flaskr.extensions import supabase_sec
+from db import DB
 
 nltk.download(["punkt", "stopwords", "wordnet"])
-
-sys.path.insert(0, '..')  # Point to the parent directory of both ava_api and flask
-sys.path.pop(0)
-
-
-# I hope this database model structure should be there
-# users table
-# user_email | user_name| concat_vec | (any other fields you want)
-# concat_vec will be stored as JSON
-
-# documents table
-# user_email | doc_Id |file | ....(any other fields you want)
-# note that for documents table, user_email and document Id both are primary composite key
-# to ensure one student can have multiple documents stored
+from gensim.models import Word2Vec
+import string
 
 
-def extract_text_from_files(user_email, file_path):
-    # Extract data from database for the given user_email
-    # !!!! Need to Implement: query_results = supabase_sec.table('documents').select('file').eq('user_email', user_email)
-    query_results = []
+def gather_corpus_filenames(user):
+    # unknown_filenames = [DB.construct_path_current(user.subject, user.assignment, user.id)]
+    known_filenames = DB.list_past_assignments(user.email)
 
-    # Extracting and processing document texts from results
-    known_texts = []
-    for res in query_results.data:
-        text_content = res['file']
-        cleaned_lines = [line.strip().lstrip("\ufeff") for line in text_content.split('\n')]
-        known_texts.append(cleaned_lines)
+    new_known_filenames = []
+    for filename in known_filenames:
+        # get the filename without last 4 letters
+        name = filename[:-4]
+        if 'cached' in name:
+            print(filename, 'cached')
+            continue
+        else:
+            name = name.split('_')[0]
+            if name + '_cached.npy' in known_filenames:
+                new_known_filenames.append(name + '_cached.npy')
+            else:
+                new_known_filenames.append(filename)
 
-    # Process the file for the unknown document
     unknown_text = []
-    with open(file_path, 'r') as file:
-        text_lines = []
-        for line in file:
-            cleaned_line = line.strip().lstrip("\ufeff")
-            text_lines.append(cleaned_line)
+    unknown_file = DB.download_current_assignment(user.subject, user.assignment, user.id)
+    text_lines = []
+    for line in unknown_file.decode('utf-8').splitlines():
+        cleaned_line = line.strip().lstrip("\ufeff")
+        text_lines.append(cleaned_line)
     unknown_text.append(text_lines)
 
-    # known_texts and unknown_text are list of list strings and each list of a string
-    # refers to a single document
-    return known_texts, unknown_text
+    # known_files = DB.get_past_files(user.email)
+    # for known_file in known_files:
+    #     text_lines = []
+    #     for line in known_file.decode('utf-8').splitlines():
+    #         cleaned_line = line.strip().lstrip("\ufeff")
+    #         text_lines.append(cleaned_line)
+    #     known_text.append(text_lines)
+
+    return new_known_filenames, unknown_text
 
 
-def build_corpus(data_directory, user_email):
-    corpus = {}
-    # given that only one txt file is there so just index that file
-    problem_file_paths = glob.glob(os.path.join(data_directory, '*'))[0]
-
-    known_text, unknown_text = extract_text_from_files(user_email, problem_file_paths)
-    corpus[0] = {
-        'known': known_text,
-        'unknown': unknown_text
-    }
-
-    return corpus
+# def build_corpus(user):
+#     corpus = {}
+#
+#     known_text, unknown_text = extract_text_from_files(user)
+#     corpus[0] = {
+#         'known': known_text,
+#         'unknown': unknown_text
+#     }
+#
+#     return corpus
 
 
 def preprocess_text(text):
@@ -159,25 +150,20 @@ def analyze_words(texts):
     """
     Analyze the words used in the texts
     """
-
     words = []
     stop_words = set(stopwords.words('english'))
     lemmatizer = WordNetLemmatizer()
-
     for text in texts:
         tokenized = word_tokenize(text.lower())
         processed = [lemmatizer.lemmatize(word) for word in tokenized if word not in stop_words]
         words += processed
-    
     word_freq = nltk.FreqDist(words)
     rare_count = np.sum([freq <= 2 for word, freq in word_freq.items()])
     long_count = np.sum([len(word) > 6 for word in words])
     word_lengths = [len(word) for word in words]
-
     average_length = np.mean(word_lengths)
     count_over_avg = np.sum([length > average_length for length in word_lengths])
     count_under_avg = np.sum([length < average_length for length in word_lengths])
-
     count_avg = len(word_lengths) - count_over_avg - count_under_avg
     ttr = len(set(words)) / len(words) if words else 0
 
@@ -198,60 +184,57 @@ def calculate_style_vector(texts):
     return vector / word_count if word_count else vector
 
 
-def get_vectors(texts, w2v_model, vector_size):
+def get_vectors(user, texts, w2v_model, is_known, vector_size):
+    was_cached, new_texts = [], []
+    if is_known:
+        for text in texts:
+            new_texts.append(DB.read_past_file(user, text))
+            was_cached.append(text[:-4] == '.npy')
+        texts = new_texts
+    else:
+        was_cached = [False for _ in range(len(texts))]
+    print(texts, new_texts)
     res = []
-    for text in texts:
-        w2v_vec = np.mean(convert_text_to_vector(text, w2v_model, vector_size), axis=0)
-        style_vec = calculate_style_vector(text)
-        res.append(np.concatenate((w2v_vec, style_vec), axis=None))
+    for text, was_cache in zip(texts, was_cached):
+        if was_cache:
+            res.append(text)
+        else:
+            print("Calculated style vector for text: ", text)
+            w2v_vec = np.mean(convert_text_to_vector(text, w2v_model, vector_size), axis=0)
+            style_vec = calculate_style_vector(text)
+            res.append(np.concatenate((w2v_vec, style_vec), axis=None))
 
     return res
 
 
-def vectorize_text_data(data, w2v_model, vector_size, user_email):
+def build_corpus_and_vectorize_text_data(user, w2v_model, vector_size):
     """
   Build author data from the corpus
   """
+
+    corpus = {}
+
+    known_filenames, unknown_filenames = gather_corpus_filenames(user)
+    corpus[0] = {
+        'known': known_filenames,
+        'unknown': unknown_filenames
+    }
+
     res = {}
-    for key, val in tqdm(data.items(), total=len(data)):
+    for key, val in tqdm(corpus.items(), total=len(corpus)):
+        print()
         if len(val['unknown']) == 0:
             continue
-
-        # fetch already present concatenated vec from database
-        # !!!! Need to Implement: vector_result = supabase_sec.table('User').select('concat_vec').eq('user_email', user_email)
-        vector_result = []
-        if not vector_result.data or vector_result.data[0]['concat_vec'] is None:
-
-            concat_vec = get_vectors(val['known'], w2v_model, vector_size)
-            # Store the computed concat_vec into the database for the user
-            json_string = json.dumps(concat_vec)
-
-            # !!!! Need to Implement: Below update Query
-            # update_response = supabase_sec.table('User').update({
-            #     'concat_vec': json_string
-            # }).eq('user_email', user_email).execute()
-            update_response = None
-
-            # error handling
-            if update_response.error:
-                print("Error updating concat_vec for user:", update_response.error)
-
-            res[key] = {
-                # need to modify this i.e., if concatenated vec present already then no need to calculate again
-                'known': concat_vec,
-                'unknown': get_vectors(val['unknown'], w2v_model, vector_size),
-            }
-        else:
-            res[key] = {
-                'known': json.loads(vector_result.data[0]['concat_vec']),
-                'unknown': get_vectors(val['unknown'], w2v_model, vector_size),
-            }
+        res[key] = {
+            'known': get_vectors(user, val['known'], w2v_model, True, vector_size),
+            'unknown': get_vectors(user, val['unknown'], w2v_model, False, vector_size),
+        }
 
     return res
 
 
-def preprocess_dataset(data_directory, vector_size=300, user_email=""):
-    test_corpus = build_corpus(data_directory, user_email)
+def preprocess_dataset(user, vector_size=300):
     word2vec_model = Word2Vec.load("w2v_model/word2vec.model")
-    test_data = vectorize_text_data(test_corpus, word2vec_model, vector_size, user_email)
+    # test_corpus = build_corpus(user)
+    test_data = build_corpus_and_vectorize_text_data(user, word2vec_model, vector_size)
     return test_data
