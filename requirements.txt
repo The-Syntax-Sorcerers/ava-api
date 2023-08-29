@@ -8,3 +8,5 @@ gensim
 
 # Api Dependencies
 fastapi
+uvicorn
+mangum

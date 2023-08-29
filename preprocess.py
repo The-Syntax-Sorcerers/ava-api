@@ -18,7 +18,7 @@ from gensim.models import Word2Vec
 
 nltk.download(["punkt", "stopwords", "wordnet"])
 
-sys.path.insert(0, '../..')  # Point to the parent directory of both ava_api and flask
+sys.path.insert(0, '..')  # Point to the parent directory of both ava_api and flask
 sys.path.pop(0)
 
 
