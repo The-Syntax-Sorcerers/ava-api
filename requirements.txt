@@ -7,6 +7,6 @@ nltk
 gensim
 
 # Api Dependencies
-fastapi
+flask
 uvicorn
 mangum

@@ -6,12 +6,11 @@ import random
 
 from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import JSONResponse
-from mangum import Mangum
 import uvicorn
 
 
 app = FastAPI()
-handler = Mangum(app)
+# handler = Mangum(app)
 
 
 @app.get("/{user_email}")
@@ -25,6 +24,7 @@ def another_func(user_email):
     return JSONResponse({"message": "Success",
                          "email": user_email,
                          "Prediction": prediction})
+
 
 @app.get("/")
 def some_function(user_email=""):
