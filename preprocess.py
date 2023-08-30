@@ -52,18 +52,6 @@ def gather_corpus_filenames(user):
     return new_known_filenames, unknown_filenames
 
 
-# def build_corpus(user):
-#     corpus = {}
-#
-#     known_text, unknown_text = extract_text_from_files(user)
-#     corpus[0] = {
-#         'known': known_text,
-#         'unknown': unknown_text
-#     }
-#
-#     return corpus
-
-
 def preprocess_text(text):
     """
     Preprocess a given text by tokenizing, removing punctuation and numbers,
@@ -96,21 +84,13 @@ def preprocess_text(text):
     return tokens
 
 
-def convert_text_to_vector(user, past_filename, model, is_past_assignment, vector_size):
+def convert_text_to_vector(file_text, model, vector_size):
     """
     Convert a list of texts into their corresponding word2vec vectors
     """
 
-    if past_filename[-4:] == '.npy':
-        pose = DB.read_past_file(user, past_filename)
-        print("Found Cached Vector, Reading from db", past_filename)
-        return pose
-
-    # We have the filename, bt now loading the file from db
-    text = DB.read_past_file(user, past_filename) if is_past_assignment else DB.read_current_assignment(user)
-
     vectors = []
-    for sentence in text:
+    for sentence in file_text:
         words = preprocess_text(sentence)
         vector = np.sum([model.wv[word] for word in words if word in model.wv], axis=0)
         word_count = np.sum([word in model.wv for word in words])
@@ -120,24 +100,6 @@ def convert_text_to_vector(user, past_filename, model, is_past_assignment, vecto
             vector = np.zeros(vector_size)
         vectors.append(vector)
 
-    # if it is an unknown text, we don't need to cache it.
-    if not is_past_assignment:
-        return vectors
-
-    print("Cached not found, Computing vector", past_filename)
-    # vector has been calculated for a text, so we will cache it in DB
-    cached_filename = past_filename.replace('.txt', '_cached.npy')
-
-    # Create an in-memory file
-    buffer = io.BytesIO()
-    np.save(buffer, vectors, allow_pickle=True)
-
-    # Getting file_data & uploading to DB
-    file_data = buffer.getvalue()
-    DB.upload_cached_file(user, cached_filename, file_data)
-
-    print("Vector Cached to database", cached_filename)
-    buffer.close()
     return vectors
 
 
@@ -215,9 +177,39 @@ def calculate_style_vector(texts):
 def get_vectors(user, past_assign_filenames, w2v_model, is_past_assignment, vector_size):
     res = []
     for filename in past_assign_filenames:
-        w2v_vec = np.mean(convert_text_to_vector(user, filename, w2v_model, is_past_assignment, vector_size), axis=0)
-        style_vec = calculate_style_vector(filename)
-        res.append(np.concatenate((w2v_vec, style_vec), axis=None))
+        # read the file from db using filename
+        if filename[-4:] == '.npy':
+            text_vector_cached = DB.read_past_file(user, filename)
+            print("Found Cached Vector, Reading from db", filename)
+            res.append(text_vector_cached)
+            continue
+
+        text = DB.read_past_file(user, filename) if is_past_assignment else DB.read_current_assignment(user)
+
+        # Compute text vectors
+        w2v_vec = np.mean(convert_text_to_vector(text, w2v_model, vector_size), axis=0)
+        style_vec = calculate_style_vector(text)
+
+        final_file_vector = np.concatenate((w2v_vec, style_vec), axis=None)
+        res.append(final_file_vector)
+
+        # Caching the vector to db only if it is a past assignment (known text)
+        if is_past_assignment:
+
+            print("Cached not found, Computing vector", filename)
+            # vector has been calculated for a text, so we will cache it in DB
+            cached_filename = filename.replace('.txt', '_cached.npy')
+
+            # Create an in-memory file
+            buffer = io.BytesIO()
+            np.save(buffer, final_file_vector, allow_pickle=True)
+
+            # Getting file_data & uploading to DB
+            file_data = buffer.getvalue()
+            DB.upload_cached_file(user, cached_filename, file_data)
+
+            print("Vector Cached to database", cached_filename)
+            buffer.close()
 
     return res
 

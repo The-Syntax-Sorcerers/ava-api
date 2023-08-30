@@ -12,6 +12,6 @@
     {"name": "EE020", "answer": "N", "language": "english", "genre": "essays"},
     {"name": "EE024", "answer": "N", "language": "english", "genre": "essays"},
     {"name": "EE028", "answer": "N", "language": "english", "genre": "essays"},
-    {"name": "EE030", "answer": "Y", "language": "english", "genre": "essays"},
+    {"name": "EE030", "answer": "Y", "language": "english", "genre": "essays"}
     ]
 }

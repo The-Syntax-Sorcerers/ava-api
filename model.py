@@ -100,7 +100,8 @@ def load_model(checkpoint_dir):
 
     siamese_model = SiameseNet(323, 64)
     latest = tf.train.latest_checkpoint(os.path.abspath(checkpoint_dir))
-    siamese_model.load_weights(latest)
+    siamese_model.load_weights(latest).expect_partial()  # ONLY USE WHEN TESTING
+    # siamese_model.load_weights(latest)
     return siamese_model
 
 
