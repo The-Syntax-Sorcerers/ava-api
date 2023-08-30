@@ -42,7 +42,7 @@ test_data = preprocess_dataset(User('test@gmail.com', 'COMP123456', '69', '420')
 # model = load_model('model_weights')
 # print("model load complete")
 # model.get_predictions(test_data)
-print(type(DB.download_current_assignment('COMP123456', '1', 'bluffmaster')))
+# print(type(DB.download_current_assignment('COMP123456', '1', 'bluffmaster')))
 print("======Testing End======")
 
 if __name__ == "__main__":

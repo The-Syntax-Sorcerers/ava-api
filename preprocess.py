@@ -24,7 +24,6 @@ def gather_corpus_filenames(user):
         # get the filename without last 4 letters
         name = filename[:-4]
         if 'cached' in name:
-            print(filename, 'cached')
             continue
         else:
             name = name.split('_')[0]
@@ -193,7 +192,6 @@ def get_vectors(user, texts, w2v_model, is_known, vector_size):
         texts = new_texts
     else:
         was_cached = [False for _ in range(len(texts))]
-    print(texts, new_texts)
     res = []
     for text, was_cache in zip(texts, was_cached):
         if was_cache:
