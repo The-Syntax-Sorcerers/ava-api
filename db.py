@@ -31,26 +31,29 @@ class DB:
         username = user.email.split('@')[0]
         path = DB.construct_path_past(username, filename)
         try:
-            supabase_sec.storage.from_(PAST_ASSIGNMENTS_BUCKET).delete(path)
+            supabase_sec.storage.from_(PAST_ASSIGNMENTS_BUCKET).remove(path)
         except StorageException:
+            print("Could not delete cached file", path)
             pass
 
         try:
             supabase_sec.storage.from_(PAST_ASSIGNMENTS_BUCKET).upload(path, file)
         except StorageException:
+            print("Could not upload cached file", path)
             pass
+        return True
 
     @staticmethod
     def read_past_file(user, filename):
 
         # check if the file is .npy or .txt
         if filename[-4:] == '.npy':
-            return DB.__read_past_npy_file(user.email, filename)
+            return DB.__download_past_npy_file(user.email, filename)
         else:
-            return DB.__read_past_txt_file(user.email, filename)
+            return DB.__download_past_txt_file(user.email, filename)
 
     @staticmethod
-    def __read_past_txt_file(user_email, filename):
+    def __download_past_txt_file(user_email, filename):
         username = user_email.split('@')[0]
         try:
             path = DB.construct_path_past(username, filename)
@@ -65,12 +68,15 @@ class DB:
             return None
 
     @staticmethod
-    def __read_past_npy_file(user_email, filename):
+    def __download_past_npy_file(user_email, filename):
         username = user_email.split('@')[0]
         try:
             path = DB.construct_path_past(username, filename)
             downloaded = supabase_sec.storage.from_(PAST_ASSIGNMENTS_BUCKET).download(path)
-            loaded_data = np.load(io.BytesIO(downloaded))
+
+            buffer = io.BytesIO(downloaded)
+            loaded_data = np.load(buffer, allow_pickle=True)
+
             return loaded_data
 
         except StorageException:
@@ -114,6 +120,18 @@ class DB:
     @staticmethod
     def construct_path_current(subject_id, assignment_id, user_id):
         return f'{subject_id}/{assignment_id}/{user_id}'
+
+    @staticmethod
+    def read_current_assignment(user):
+        text = DB.download_current_assignment(user.subject, user.assignment, user.id)
+        if text is None:
+            return None
+
+        text_lines = []
+        for line in text.decode('utf-8').splitlines():
+            cleaned_line = line.strip().lstrip("\ufeff")
+            text_lines.append(cleaned_line)
+        return text_lines
 
     @staticmethod
     def download_current_assignment(subject_id, assignment_id, user_id):

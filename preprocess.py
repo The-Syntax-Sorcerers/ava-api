@@ -1,3 +1,4 @@
+import io
 import os
 import json
 import nltk
@@ -16,7 +17,7 @@ import string
 
 
 def gather_corpus_filenames(user):
-    # unknown_filenames = [DB.construct_path_current(user.subject, user.assignment, user.id)]
+    unknown_filenames = [DB.construct_path_current(user.subject, user.assignment, user.id)]
     known_filenames = DB.list_past_assignments(user.email)
 
     new_known_filenames = []
@@ -32,13 +33,13 @@ def gather_corpus_filenames(user):
             else:
                 new_known_filenames.append(filename)
 
-    unknown_text = []
-    unknown_file = DB.download_current_assignment(user.subject, user.assignment, user.id)
-    text_lines = []
-    for line in unknown_file.decode('utf-8').splitlines():
-        cleaned_line = line.strip().lstrip("\ufeff")
-        text_lines.append(cleaned_line)
-    unknown_text.append(text_lines)
+    # unknown_text = []
+    # unknown_file = DB.download_current_assignment(user.subject, user.assignment, user.id)
+    # text_lines = []
+    # for line in unknown_file.decode('utf-8').splitlines():
+    #     cleaned_line = line.strip().lstrip("\ufeff")
+    #     text_lines.append(cleaned_line)
+    # unknown_text.append(text_lines)
 
     # known_files = DB.get_past_files(user.email)
     # for known_file in known_files:
@@ -48,7 +49,7 @@ def gather_corpus_filenames(user):
     #         text_lines.append(cleaned_line)
     #     known_text.append(text_lines)
 
-    return new_known_filenames, unknown_text
+    return new_known_filenames, unknown_filenames
 
 
 # def build_corpus(user):
@@ -95,13 +96,22 @@ def preprocess_text(text):
     return tokens
 
 
-def convert_text_to_vector(texts, model, vector_size):
+def convert_text_to_vector(user, past_filename, model, is_past_assignment, vector_size):
     """
     Convert a list of texts into their corresponding word2vec vectors
     """
+
+    if past_filename[-4:] == '.npy':
+        pose = DB.read_past_file(user, past_filename)
+        print("Found Cached Vector, Reading from db", past_filename)
+        return pose
+
+    # We have the filename, bt now loading the file from db
+    text = DB.read_past_file(user, past_filename) if is_past_assignment else DB.read_current_assignment(user)
+
     vectors = []
-    for text in texts:
-        words = preprocess_text(text)
+    for sentence in text:
+        words = preprocess_text(sentence)
         vector = np.sum([model.wv[word] for word in words if word in model.wv], axis=0)
         word_count = np.sum([word in model.wv for word in words])
         if word_count != 0:
@@ -109,6 +119,25 @@ def convert_text_to_vector(texts, model, vector_size):
         else:
             vector = np.zeros(vector_size)
         vectors.append(vector)
+
+    # if it is an unknown text, we don't need to cache it.
+    if not is_past_assignment:
+        return vectors
+
+    print("Cached not found, Computing vector", past_filename)
+    # vector has been calculated for a text, so we will cache it in DB
+    cached_filename = past_filename.replace('.txt', '_cached.npy')
+
+    # Create an in-memory file
+    buffer = io.BytesIO()
+    np.save(buffer, vectors, allow_pickle=True)
+
+    # Getting file_data & uploading to DB
+    file_data = buffer.getvalue()
+    DB.upload_cached_file(user, cached_filename, file_data)
+
+    print("Vector Cached to database", cached_filename)
+    buffer.close()
     return vectors
 
 
@@ -183,24 +212,12 @@ def calculate_style_vector(texts):
     return vector / word_count if word_count else vector
 
 
-def get_vectors(user, texts, w2v_model, is_known, vector_size):
-    was_cached, new_texts = [], []
-    if is_known:
-        for text in texts:
-            new_texts.append(DB.read_past_file(user, text))
-            was_cached.append(text[:-4] == '.npy')
-        texts = new_texts
-    else:
-        was_cached = [False for _ in range(len(texts))]
+def get_vectors(user, past_assign_filenames, w2v_model, is_past_assignment, vector_size):
     res = []
-    for text, was_cache in zip(texts, was_cached):
-        if was_cache:
-            res.append(text)
-        else:
-            print("Calculated style vector for text: ", text)
-            w2v_vec = np.mean(convert_text_to_vector(text, w2v_model, vector_size), axis=0)
-            style_vec = calculate_style_vector(text)
-            res.append(np.concatenate((w2v_vec, style_vec), axis=None))
+    for filename in past_assign_filenames:
+        w2v_vec = np.mean(convert_text_to_vector(user, filename, w2v_model, is_past_assignment, vector_size), axis=0)
+        style_vec = calculate_style_vector(filename)
+        res.append(np.concatenate((w2v_vec, style_vec), axis=None))
 
     return res
 
@@ -233,6 +250,5 @@ def build_corpus_and_vectorize_text_data(user, w2v_model, vector_size):
 
 def preprocess_dataset(user, vector_size=300):
     word2vec_model = Word2Vec.load("w2v_model/word2vec.model")
-    # test_corpus = build_corpus(user)
     test_data = build_corpus_and_vectorize_text_data(user, word2vec_model, vector_size)
     return test_data
