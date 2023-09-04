@@ -3,6 +3,7 @@ import numpy as np
 import tensorflow as tf
 from tqdm import tqdm
 
+
 class SiameseNet(tf.keras.Model):
     def __init__(self, embedding_dim=323, output_shape=64):
         '''Initialize an untrained SiameseNet model'''
@@ -94,13 +95,13 @@ class SiameseNet(tf.keras.Model):
         return predictions
 
 
-    
 def load_model(checkpoint_dir):
     ''' Load the SiameseNet model from saved checkpoints'''
 
     siamese_model = SiameseNet(323, 64)
     latest = tf.train.latest_checkpoint(os.path.abspath(checkpoint_dir))
-    siamese_model.load_weights(latest)
+    siamese_model.load_weights(latest).expect_partial()  # ONLY USE WHEN TESTING
+    # siamese_model.load_weights(latest)
     return siamese_model
 
 
