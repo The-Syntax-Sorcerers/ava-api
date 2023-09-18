@@ -86,12 +86,8 @@ class SiameseNet(tf.keras.Model):
         predictions = []
         y_predict = self.clf.predict(input_vec)
         for i in range(len(y_predict)):
-            if y_predict[i] > 0.5:
-                predictions.append(1)
-            elif y_predict[i] < 0.5:
-                predictions.append(-1)
-            else:
-                predictions.append(0)
+            x = y_predict[i][0].item()
+            predictions.append(x)
         return predictions
 
 
