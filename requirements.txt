@@ -11,3 +11,5 @@ supabase
 
 # Local Deps
 uvicorn
+
+python-dotenv

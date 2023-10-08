@@ -1,3 +1,4 @@
+from dotenv import load_dotenv
 import io
 import os
 
@@ -8,17 +9,10 @@ from supabase import create_client, Client
 PAST_ASSIGNMENTS_BUCKET = 'ava-prod-past-assignments'
 CURRENT_ASSIGNMENTS_BUCKET = 'ava-prod-assignments'
 
+load_dotenv()
 
-def load_from_env(variable_names: list):
-    for v in variable_names:
-        res = os.environ.get(v)
-        if res:
-            return res
-    return None
-
-
-url: str = load_from_env(["SUPABASE_URL"])
-secret_key: str = load_from_env(["SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_SECRET_KEY"])
+url: str = os.getenv("SUPABASE_URL")
+secret_key: str = os.getenv("SUPABASE_SECRET_KEY")
 
 supabase_sec: Client = create_client(url, secret_key)
 assert supabase_sec is not None
