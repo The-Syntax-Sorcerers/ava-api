@@ -1,15 +1,19 @@
 # ML Dependencies
-tensorflow
-numpy
-tqdm
-nltk
-gensim
+# tensorflow-2.4.1-py3-none-any.whl
+numpy>=1.23.5
+tqdm~=4.66.1
+nltk~=3.8.1
+gensim~=4.3.2
 
 # Api Dependencies
-fastapi
-supabase
+fastapi~=0.103.0
+supabase~=1.0.4
 
 # Local Deps
-uvicorn
+uvicorn~=0.23.2
 
-python-dotenv
+python-dotenv~=1.0.0
+
+storage3~=0.5.4
+mangum~=0.17.0
+tensorflow~=2.14.0
