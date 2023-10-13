@@ -9,11 +9,13 @@ from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 
-from db import DB
-
-nltk.download(["punkt", "stopwords", "wordnet"])
 from gensim.models import Word2Vec
+from db import DB
 import string
+
+
+nltk.data.path.append("tmp/custom_nltk_data")
+nltk.download(["punkt", "stopwords", "wordnet"], download_dir="tmp/custom_nltk_data")
 
 
 def gather_corpus_filenames(user):

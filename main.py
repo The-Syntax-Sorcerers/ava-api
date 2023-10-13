@@ -8,13 +8,15 @@ import random
 from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import JSONResponse
 
+import uvicorn
+from mangum import Mangum
 
 app = FastAPI()
-# handler = Mangum(app)
+handler = Mangum(app)
 
 
 @app.get("/")
-def base_endpoint(user_email=""):
+def base_endpoint():
     return JSONResponse({"message": "Api is Live!!"})
 
 
@@ -48,7 +50,6 @@ print("======Testing the functions======")
 
 
 if __name__ == "__main__":
-    import uvicorn
     uvicorn.run(app, host="127.0.0.1", port=9000)
     # TEST_URL: http://127.0.0.1:9000/predict?user_email=EE030%40gmail.com&subject_id=TESTSUB123&assignment_id=30&user_id=unknown.txt
 
