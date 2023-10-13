@@ -5,9 +5,9 @@
 !db.py
 !model.py
 !preprocess.py
+!main.py
 !.env
 !requirements.txt
-!main.py
 !README.md
 !.dockerignore
 !Dockerfile
