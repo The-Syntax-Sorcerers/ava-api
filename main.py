@@ -1,5 +1,3 @@
-# import numpy as np
-#
 from db import User
 from model import load_model
 from preprocess import preprocess_dataset
@@ -24,7 +22,7 @@ def base_endpoint():
 def feed_forward(user_email: str, subject_id: str, assignment_id: str, user_id: str):
 
     test_data = preprocess_dataset(User(user_email, subject_id, assignment_id, user_id))
-    model = load_model('model_weights')
+    model = load_model('var/task/model_weights')
     predictions = model.get_predictions(test_data)
 
     return JSONResponse({"message": "Prediction Success!!",

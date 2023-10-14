@@ -243,6 +243,6 @@ def build_corpus_and_vectorize_text_data(user, w2v_model, vector_size):
 
 
 def preprocess_dataset(user, vector_size=300):
-    word2vec_model = Word2Vec.load("w2v_model/word2vec.model")
+    word2vec_model = Word2Vec.load("var/task/w2v_model/word2vec.model")
     test_data = build_corpus_and_vectorize_text_data(user, word2vec_model, vector_size)
     return test_data

@@ -8,7 +8,8 @@ COPY requirements.txt ${LAMBDA_TASK_ROOT}
 
 # Copy function code
 COPY . ./
-COPY w2v_model model_weights ${LAMBDA_TASK_ROOT}
+#COPY w2v_model model_weights ${LAMBDA_TASK_ROOT}
+
 
 
 # Install the specified packages
