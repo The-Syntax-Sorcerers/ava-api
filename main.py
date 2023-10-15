@@ -9,6 +9,10 @@ from fastapi.responses import JSONResponse
 import uvicorn
 from mangum import Mangum
 
+# Change this variable to True if you want to run it in your local
+run_local = False
+current_environment = "" if run_local else "var/task/"
+
 app = FastAPI()
 handler = Mangum(app)
 
@@ -21,8 +25,8 @@ def base_endpoint():
 @app.get("/predict")
 def feed_forward(user_email: str, subject_id: str, assignment_id: str, user_id: str):
 
-    test_data = preprocess_dataset(User(user_email, subject_id, assignment_id, user_id))
-    model = load_model('var/task/model_weights')
+    test_data = preprocess_dataset(User(user_email, subject_id, assignment_id, user_id), current_environment)
+    model = load_model(current_environment + 'model_weights')
     predictions = model.get_predictions(test_data)
 
     return JSONResponse({"message": "Prediction Success!!",
