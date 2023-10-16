@@ -147,6 +147,18 @@ class DB:
                 return [obj]
         return []
 
+    @staticmethod
+    def store_style_vector(user, payload):
+
+        payload.update({'subject_id': user.subject, 'assignment_id': user.assignment, 'user_id': user.id,
+                        'similarity_score': 0})
+        try:
+            supabase_sec.table('SubjectAssignmentStudent').upsert(payload).execute()
+        except:
+            print("Failed to upsert!")
+
+
+
 
 class User:
 

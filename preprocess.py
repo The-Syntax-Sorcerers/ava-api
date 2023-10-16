@@ -121,8 +121,24 @@ def count_punctuations(texts):
             if char in punctuations:
                 punctuations_count[char] += 1
 
+    payload = {
+        'punc_periods': punctuations_count['.'],
+        'punc_commas': punctuations_count[','],
+        'punc_semicolons': punctuations_count[';'],
+        'punc_colons': punctuations_count[':'],
+        'punc_exclamations': punctuations_count['!'],
+        'punc_questions': punctuations_count['?'],
+        'punc_dashes': punctuations_count['-'],
+        'punc_open_par': punctuations_count['('],
+        'punc_close_par': punctuations_count[')'],
+        'punc_double_quotes': punctuations_count['\"'],
+        'punc_apostrophes': punctuations_count['\''],
+        'punc_tilda': punctuations_count['`'],
+        'punc_forward_slash': punctuations_count['/'],
+    }
+
     # Return list of punctuation counts
-    return list(punctuations_count.values())
+    return payload, list(punctuations_count.values())
 
 
 def analyze_sentence_lengths(sentences):
@@ -135,7 +151,14 @@ def analyze_sentence_lengths(sentences):
     count_under_avg = np.sum([length < average_length for length in sentence_lengths])
     count_avg = len(sentence_lengths) - count_over_avg - count_under_avg
 
-    return [count_over_avg, count_under_avg, count_avg, average_length]
+    payload = {
+        'sent_over_avg': count_over_avg,
+        'sent_under_avg': count_under_avg,
+        'sent_count_avg': count_avg,
+        'sent_avg_length': average_length,
+    }
+
+    return payload, [count_over_avg, count_under_avg, count_avg, average_length]
 
 
 def analyze_words(texts):
@@ -159,19 +182,37 @@ def analyze_words(texts):
     count_avg = len(word_lengths) - count_over_avg - count_under_avg
     ttr = len(set(words)) / len(words) if words else 0
 
-    return [rare_count, long_count, count_over_avg, count_under_avg, count_avg, ttr]
+    payload = {
+        'word_rare_count': rare_count,
+        'word_long_count': long_count,
+        'word_over_avg': count_over_avg,
+        'word_under_avg': count_under_avg,
+        'word_count_avg': count_avg,
+        'word_ttr': ttr,
+        'word_avg_length': average_length
+    }
+
+    return payload, [rare_count, long_count, count_over_avg, count_under_avg, count_avg, ttr]
 
 
-def calculate_style_vector(texts):
+def calculate_style_vector(user, texts):
     """
   Calculate the style vector of the texts
   """
-    punctuation_vec = count_punctuations(texts)  # Punctuations stylistic features
-    sentence_vec = analyze_sentence_lengths(texts)  # Sentences stylistic features
-    word_vec = analyze_words(texts)  # Words stylistic features
+    payload1, punctuation_vec = count_punctuations(texts)  # Punctuations stylistic features
+    payload2, sentence_vec = analyze_sentence_lengths(texts)  # Sentences stylistic features
+    payload3, word_vec = analyze_words(texts)  # Words stylistic features
     word_count = np.sum([len(text.split()) for text in texts])
 
     vector = np.concatenate((punctuation_vec, sentence_vec, word_vec))
+
+    final_payload = {}
+    final_payload.update(payload1)
+    final_payload.update(payload2)
+    final_payload.update(payload3)
+    final_payload.update({'word_count': word_count})
+
+    DB.store_style_vector(user, final_payload)
 
     return vector / word_count if word_count else vector
 
@@ -190,7 +231,7 @@ def get_vectors(user, past_assign_filenames, w2v_model, is_past_assignment, vect
 
         # Compute text vectors
         w2v_vec = np.mean(convert_text_to_vector(text, w2v_model, vector_size), axis=0)
-        style_vec = calculate_style_vector(text)
+        style_vec = calculate_style_vector(user, text)
 
         final_file_vector = np.concatenate((w2v_vec, style_vec), axis=None)
         res.append(final_file_vector)
