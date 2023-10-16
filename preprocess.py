@@ -122,19 +122,19 @@ def count_punctuations(texts):
                 punctuations_count[char] += 1
 
     payload = {
-        'punc_periods': punctuations_count['.'],
-        'punc_commas': punctuations_count[','],
-        'punc_semicolons': punctuations_count[';'],
-        'punc_colons': punctuations_count[':'],
-        'punc_exclamations': punctuations_count['!'],
-        'punc_questions': punctuations_count['?'],
-        'punc_dashes': punctuations_count['-'],
-        'punc_open_par': punctuations_count['('],
-        'punc_close_par': punctuations_count[')'],
-        'punc_double_quotes': punctuations_count['\"'],
-        'punc_apostrophes': punctuations_count['\''],
-        'punc_tilda': punctuations_count['`'],
-        'punc_forward_slash': punctuations_count['/'],
+        'punc_periods': int(punctuations_count['.']),
+        'punc_commas': int(punctuations_count[',']),
+        'punc_semicolons': int(punctuations_count[';']),
+        'punc_colons': int(punctuations_count[':']),
+        'punc_exclamations': int(punctuations_count['!']),
+        'punc_questions': int(punctuations_count['?']),
+        'punc_dashes': int(punctuations_count['-']),
+        'punc_open_par': int(punctuations_count['(']),
+        'punc_close_par': int(punctuations_count[')']),
+        'punc_double_quotes': int(punctuations_count['\"']),
+        'punc_apostrophes': int(punctuations_count['\'']),
+        'punc_tilda': int(punctuations_count['`']),
+        'punc_forward_slash': int(punctuations_count['/']),
     }
 
     # Return list of punctuation counts
@@ -152,10 +152,10 @@ def analyze_sentence_lengths(sentences):
     count_avg = len(sentence_lengths) - count_over_avg - count_under_avg
 
     payload = {
-        'sent_over_avg': count_over_avg,
-        'sent_under_avg': count_under_avg,
-        'sent_count_avg': count_avg,
-        'sent_avg_length': average_length,
+        'sent_over_avg': float(count_over_avg),
+        'sent_under_avg': float(count_under_avg),
+        'sent_count_avg': float(count_avg),
+        'sent_avg_length': float(average_length),
     }
 
     return payload, [count_over_avg, count_under_avg, count_avg, average_length]
@@ -183,19 +183,19 @@ def analyze_words(texts):
     ttr = len(set(words)) / len(words) if words else 0
 
     payload = {
-        'word_rare_count': rare_count,
-        'word_long_count': long_count,
-        'word_over_avg': count_over_avg,
-        'word_under_avg': count_under_avg,
-        'word_count_avg': count_avg,
-        'word_ttr': ttr,
-        'word_avg_length': average_length
+        'word_rare_count': int(rare_count),
+        'word_long_count': int(long_count),
+        'word_over_avg': float(count_over_avg),
+        'word_under_avg': float(count_under_avg),
+        'word_count_avg': float(count_avg),
+        'word_ttr': float(ttr),
+        'word_avg_length': float(average_length)
     }
 
     return payload, [rare_count, long_count, count_over_avg, count_under_avg, count_avg, ttr]
 
 
-def calculate_style_vector(user, texts):
+def calculate_style_vector(user, filename, texts):
     """
   Calculate the style vector of the texts
   """
@@ -210,15 +210,16 @@ def calculate_style_vector(user, texts):
     final_payload.update(payload1)
     final_payload.update(payload2)
     final_payload.update(payload3)
-    final_payload.update({'word_count': word_count})
+    final_payload.update({'word_count': int(word_count)})
 
-    DB.store_style_vector(user, final_payload)
+    DB.store_style_vector(user, filename, final_payload)
 
     return vector / word_count if word_count else vector
 
 
 def get_vectors(user, past_assign_filenames, w2v_model, is_past_assignment, vector_size):
     res = []
+    print("pastnames", past_assign_filenames)
     for filename in past_assign_filenames:
         # read the file from db using filename
         if filename[-4:] == '.npy':
@@ -226,12 +227,19 @@ def get_vectors(user, past_assign_filenames, w2v_model, is_past_assignment, vect
             print("Found Cached Vector, Reading from db", filename)
             res.append(text_vector_cached)
             continue
+        
+        if is_past_assignment:
+            text = DB.read_past_file(user, filename)
+            print("past text", text)
+        else:
+            filename = filename.split('/')[-1]
+            text = DB.read_current_assignment(user, filename)
+            print("current text", text)
 
-        text = DB.read_past_file(user, filename) if is_past_assignment else DB.read_current_assignment(user)
 
         # Compute text vectors
         w2v_vec = np.mean(convert_text_to_vector(text, w2v_model, vector_size), axis=0)
-        style_vec = calculate_style_vector(user, text)
+        style_vec = calculate_style_vector(user, filename, text)
 
         final_file_vector = np.concatenate((w2v_vec, style_vec), axis=None)
         res.append(final_file_vector)

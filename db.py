@@ -1,3 +1,5 @@
+import re
+
 from dotenv import load_dotenv
 import io
 import os
@@ -5,6 +7,7 @@ import os
 import numpy as np
 from storage3.utils import StorageException
 from supabase import create_client, Client
+from PyPDF2 import PdfReader
 
 PAST_ASSIGNMENTS_BUCKET = 'ava-prod-past-assignments'
 CURRENT_ASSIGNMENTS_BUCKET = 'ava-prod-assignments'
@@ -43,17 +46,35 @@ class DB:
         # check if the file is .npy or .txt
         if filename[-4:] == '.npy':
             return DB.__download_past_npy_file(user.email, filename)
-        else:
+        elif filename[-4:] == '.txt':
             return DB.__download_past_txt_file(user.email, filename)
+        else:
+            return DB.__download_past_bytes_file(user.email, filename)
+
+    @staticmethod
+    def __download_past_bytes_file(user_email, filename):
+        try:
+            username = user_email.split('@')[0]
+
+            path = DB.construct_path_past(username, filename)
+            downloaded = supabase_sec.storage.from_(PAST_ASSIGNMENTS_BUCKET).download(path)
+
+            buffer = io.BytesIO(downloaded)
+            return buffer.getvalue()
+
+        except StorageException:
+            return None
 
     @staticmethod
     def __download_past_txt_file(user_email, filename):
-        username = user_email.split('@')[0]
         try:
+            username = user_email.split('@')[0]
+
             path = DB.construct_path_past(username, filename)
-            temp_file = supabase_sec.storage.from_(PAST_ASSIGNMENTS_BUCKET).download(path)
+            downloaded = supabase_sec.storage.from_(PAST_ASSIGNMENTS_BUCKET).download(path)
+
             text_lines = []
-            for line in temp_file.decode('utf-8').splitlines():
+            for line in downloaded.decode('utf-8').splitlines():
                 cleaned_line = line.strip().lstrip("\ufeff")
                 text_lines.append(cleaned_line)
             return text_lines
@@ -116,16 +137,36 @@ class DB:
         return f'{subject_id}/{assignment_id}/{user_id}'
 
     @staticmethod
-    def read_current_assignment(user):
-        text = DB.download_current_assignment(user.subject, user.assignment, user.id)
-        if text is None:
+    def read_current_assignment(user, filename):
+        file_bytes = DB.download_current_assignment(user.subject, user.assignment, user.id)
+        if file_bytes is None:
             return None
 
-        text_lines = []
-        for line in text.decode('utf-8').splitlines():
-            cleaned_line = line.strip().lstrip("\ufeff")
-            text_lines.append(cleaned_line)
-        return text_lines
+        if filename[-4:] == '.txt':
+            text_lines = []
+            for line in file_bytes.decode('utf-8').splitlines():
+                cleaned_line = line.strip().lstrip("\ufeff")
+                text_lines.append(cleaned_line)
+            return text_lines
+
+        elif file_bytes.startswith(b'%PDF-1.'):
+            text_list = []
+            pdf_reader = PdfReader(io.BytesIO(file_bytes))
+            for page_num in range(len(pdf_reader.pages)):
+                page = pdf_reader.pages[page_num]
+                page_text = page.extract_text()
+
+                # Split the page text into sentences based on full stops & new lines
+                sentences = page_text.split('.')
+
+                # Add each sentence to the text list
+                text_list.extend(sentences)
+
+            return text_list
+
+        else:
+            bytesIO = io.BytesIO(file_bytes)
+            return bytesIO.getvalue()
 
     @staticmethod
     def download_current_assignment(subject_id, assignment_id, user_id):
@@ -148,16 +189,14 @@ class DB:
         return []
 
     @staticmethod
-    def store_style_vector(user, payload):
+    def store_style_vector(user, filename, payload):
+        temp_userid = user.id.strip('.txt')
+        temp_filename = filename.strip('.txt')
 
-        payload.update({'subject_id': user.subject, 'assignment_id': user.assignment, 'user_id': user.id,
-                        'similarity_score': 0})
-        try:
-            supabase_sec.table('SubjectAssignmentStudent').upsert(payload).execute()
-        except:
-            print("Failed to upsert!")
+        payload.update({'subject_id': user.subject, 'assignment_id': temp_filename, 'user_id': temp_userid,
+                        'similarity_score': 0.0})
 
-
+        supabase_sec.table('SubjectAssignmentUser').upsert(payload).execute()
 
 
 class User:
