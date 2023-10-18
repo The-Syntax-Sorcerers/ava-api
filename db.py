@@ -189,13 +189,19 @@ class DB:
         return []
 
     @staticmethod
-    def store_style_vector(user, filename, payload):
+    def store_past_style_vector(user, filename, payload):
         temp_userid = user.id.strip('.txt')
         temp_filename = filename.strip('.txt')
 
-        payload.update({'subject_id': user.subject, 'assignment_id': temp_filename, 'user_id': temp_userid,
-                        'similarity_score': 0.0})
+        payload.update({'subject_id': user.subject, 'assignment_id': temp_filename, 'user_id': temp_userid})
+        supabase_sec.table('SubjectAssignmentUser').upsert(payload).execute()
 
+    @staticmethod
+    def store_style_vector(user, payload, prediction):
+        temp_userid = user.id.rstrip('.txt')
+
+        payload.update({'subject_id': user.subject, 'assignment_id': user.assignment, 'user_id': temp_userid,
+                        'similarity_score': prediction})
         supabase_sec.table('SubjectAssignmentUser').upsert(payload).execute()
 
 

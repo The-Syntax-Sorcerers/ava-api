@@ -212,9 +212,9 @@ def calculate_style_vector(user, filename, texts):
     final_payload.update(payload3)
     final_payload.update({'word_count': int(word_count)})
 
-    DB.store_style_vector(user, filename, final_payload)
+    # DB.store_style_vector(user, filename, final_payload)
 
-    return vector / word_count if word_count else vector
+    return final_payload, vector / word_count if word_count else vector
 
 
 def get_vectors(user, past_assign_filenames, w2v_model, is_past_assignment, vector_size):
@@ -239,7 +239,7 @@ def get_vectors(user, past_assign_filenames, w2v_model, is_past_assignment, vect
 
         # Compute text vectors
         w2v_vec = np.mean(convert_text_to_vector(text, w2v_model, vector_size), axis=0)
-        style_vec = calculate_style_vector(user, filename, text)
+        final_payload, style_vec = calculate_style_vector(user, filename, text)
 
         final_file_vector = np.concatenate((w2v_vec, style_vec), axis=None)
         res.append(final_file_vector)
@@ -258,9 +258,13 @@ def get_vectors(user, past_assign_filenames, w2v_model, is_past_assignment, vect
             # Getting file_data & uploading to DB
             file_data = buffer.getvalue()
             DB.upload_cached_file(user, cached_filename, file_data)
+            DB.store_past_style_vector(user, filename, final_payload)
 
             print("Vector Cached to database", cached_filename)
             buffer.close()
+
+        else:
+            return final_payload, res
 
     return res
 
@@ -279,19 +283,23 @@ def build_corpus_and_vectorize_text_data(user, w2v_model, vector_size):
     }
 
     res = {}
+    final_payloads = []
     for key, val in tqdm(corpus.items(), total=len(corpus)):
         print()
         if len(val['unknown']) == 0:
             continue
+
+        final_payload, unknown_vecs = get_vectors(user, val['unknown'], w2v_model, False, vector_size)
+        final_payloads.append(final_payload)
         res[key] = {
             'known': get_vectors(user, val['known'], w2v_model, True, vector_size),
-            'unknown': get_vectors(user, val['unknown'], w2v_model, False, vector_size),
+            'unknown': unknown_vecs
         }
 
-    return res
+    return final_payloads, res
 
 
 def preprocess_dataset(user, current_environment, vector_size=300):
     word2vec_model = Word2Vec.load(current_environment + "w2v_model/word2vec.model")
-    test_data = build_corpus_and_vectorize_text_data(user, word2vec_model, vector_size)
-    return test_data
+    final_payloads, test_data = build_corpus_and_vectorize_text_data(user, word2vec_model, vector_size)
+    return final_payloads, test_data
