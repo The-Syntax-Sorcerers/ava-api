@@ -252,6 +252,8 @@ def get_vectors(user, past_assign_filenames, w2v_model, is_past_assignment, vect
             print("Cached not found, Computing vector", filename)
             # vector has been calculated for a text, so we will cache it in DB
             cached_filename = filename.replace('.txt', '_cached.npy')
+            if cached_filename[-4:] != '.npy':
+                cached_filename += '_cached.npy'
 
             # Create an in-memory file
             buffer = io.BytesIO()

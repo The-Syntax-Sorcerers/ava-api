@@ -63,7 +63,23 @@ class DB:
             val = bytesIO.getvalue()
 
             if type(val) == bytes:
-                return downloaded.decode().splitlines()
+
+                if downloaded.startswith(b'%PDF-1.'):
+                    text_list = []
+                    pdf_reader = PdfReader(io.BytesIO(downloaded))
+                    for page_num in range(len(pdf_reader.pages)):
+                        page = pdf_reader.pages[page_num]
+                        page_text = page.extract_text()
+
+                        # Split the page text into sentences based on full stops & new lines
+                        sentences = page_text.split('.')
+
+                        # Add each sentence to the text list
+                        text_list.extend(sentences)
+
+                    return text_list
+                else:
+                    return downloaded.decode().splitlines()
             else:
                 return val.splitlines()
 
