@@ -10,7 +10,7 @@ import uvicorn
 from mangum import Mangum
 
 # Change this variable to True if you want to run it in your local
-run_local = True
+run_local = False
 current_environment = "" if run_local else "var/task/"
 
 app = FastAPI()
