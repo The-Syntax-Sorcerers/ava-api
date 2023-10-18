@@ -10,7 +10,7 @@ import uvicorn
 from mangum import Mangum
 
 # Change this variable to True if you want to run it in your local
-run_local = False
+run_local = True
 current_environment = "" if run_local else "var/task/"
 
 app = FastAPI()
@@ -29,7 +29,11 @@ def feed_forward(user_email: str, subject_id: str, assignment_id: str, user_id: 
     final_payloads, test_data = preprocess_dataset(user, current_environment)
 
     model = load_model(current_environment + 'model_weights')
-    predictions = model.get_predictions(test_data)
+
+    if not test_data[0]['known']:
+        predictions = [1]
+    else:
+        predictions = model.get_predictions(test_data)
 
     for payload, prediction in zip(final_payloads, predictions):
         DB.store_style_vector(user, payload, prediction)

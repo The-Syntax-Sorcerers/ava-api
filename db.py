@@ -59,8 +59,13 @@ class DB:
             path = DB.construct_path_past(username, filename)
             downloaded = supabase_sec.storage.from_(PAST_ASSIGNMENTS_BUCKET).download(path)
 
-            buffer = io.BytesIO(downloaded)
-            return buffer.getvalue()
+            bytesIO = io.BytesIO(downloaded)
+            val = bytesIO.getvalue()
+
+            if type(val) == bytes:
+                return downloaded.decode().splitlines()
+            else:
+                return val.splitlines()
 
         except StorageException:
             return None
@@ -166,7 +171,12 @@ class DB:
 
         else:
             bytesIO = io.BytesIO(file_bytes)
-            return bytesIO.getvalue()
+            val = bytesIO.getvalue()
+
+            if type(val) == bytes:
+                return file_bytes.decode().splitlines()
+            else:
+                return val.splitlines()
 
     @staticmethod
     def download_current_assignment(subject_id, assignment_id, user_id):

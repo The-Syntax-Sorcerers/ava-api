@@ -195,7 +195,7 @@ def analyze_words(texts):
     return payload, [rare_count, long_count, count_over_avg, count_under_avg, count_avg, ttr]
 
 
-def calculate_style_vector(user, filename, texts):
+def calculate_style_vector(texts):
     """
   Calculate the style vector of the texts
   """
@@ -239,7 +239,9 @@ def get_vectors(user, past_assign_filenames, w2v_model, is_past_assignment, vect
 
         # Compute text vectors
         w2v_vec = np.mean(convert_text_to_vector(text, w2v_model, vector_size), axis=0)
-        final_payload, style_vec = calculate_style_vector(user, filename, text)
+        print("Current2", text)
+        print(type(text))
+        final_payload, style_vec = calculate_style_vector(text)
 
         final_file_vector = np.concatenate((w2v_vec, style_vec), axis=None)
         res.append(final_file_vector)
