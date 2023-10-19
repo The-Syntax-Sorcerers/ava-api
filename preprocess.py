@@ -22,18 +22,29 @@ def gather_corpus_filenames(user):
     unknown_filenames = [DB.construct_path_current(user.subject, user.assignment, user.id)]
     known_filenames = DB.list_past_assignments(user.email)
 
-    new_known_filenames = []
+    new_known_filenames = set()
     for filename in known_filenames:
-        # get the filename without last 4 letters
-        name = filename[:-4]
-        if 'cached' in name:
-            continue
-        else:
-            name = name.split('_')[0]
+        if filename.endswith('_cached.npy'):
+            new_known_filenames.add(filename)
+        elif filename.endswith('.txt'):
+            name = filename[:-4]
             if name + '_cached.npy' in known_filenames:
-                new_known_filenames.append(name + '_cached.npy')
+                new_known_filenames.add(name + '_cached.npy')
             else:
-                new_known_filenames.append(filename)
+                new_known_filenames.add(filename)
+        elif filename.endswith('.npy'):
+            name = filename[:-4]
+            if name + '_cached.npy' in known_filenames:
+                new_known_filenames.add(name + '_cached.npy')
+            else:
+                new_known_filenames.add(filename)
+        else:
+            if filename + '_cached.npy' in known_filenames:
+                new_known_filenames.add(filename + '_cached.npy')
+            else:
+                new_known_filenames.add(filename)
+                
+    new_known_filenames = list(new_known_filenames)
 
     # unknown_text = []
     # unknown_file = DB.download_current_assignment(user.subject, user.assignment, user.id)
