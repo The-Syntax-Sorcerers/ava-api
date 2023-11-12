@@ -22,18 +22,29 @@ def gather_corpus_filenames(user):
     unknown_filenames = [DB.construct_path_current(user.subject, user.assignment, user.id)]
     known_filenames = DB.list_past_assignments(user.email)
 
-    new_known_filenames = []
+    new_known_filenames = set()
     for filename in known_filenames:
-        # get the filename without last 4 letters
-        name = filename[:-4]
-        if 'cached' in name:
-            continue
-        else:
-            name = name.split('_')[0]
+        if filename.endswith('_cached.npy'):
+            new_known_filenames.add(filename)
+        elif filename.endswith('.txt'):
+            name = filename[:-4]
             if name + '_cached.npy' in known_filenames:
-                new_known_filenames.append(name + '_cached.npy')
+                new_known_filenames.add(name + '_cached.npy')
             else:
-                new_known_filenames.append(filename)
+                new_known_filenames.add(filename)
+        elif filename.endswith('.npy'):
+            name = filename[:-4]
+            if name + '_cached.npy' in known_filenames:
+                new_known_filenames.add(name + '_cached.npy')
+            else:
+                new_known_filenames.add(filename)
+        else:
+            if filename + '_cached.npy' in known_filenames:
+                new_known_filenames.add(filename + '_cached.npy')
+            else:
+                new_known_filenames.add(filename)
+                
+    new_known_filenames = list(new_known_filenames)
 
     # unknown_text = []
     # unknown_file = DB.download_current_assignment(user.subject, user.assignment, user.id)
@@ -121,8 +132,24 @@ def count_punctuations(texts):
             if char in punctuations:
                 punctuations_count[char] += 1
 
+    payload = {
+        'punc_periods': int(punctuations_count['.']),
+        'punc_commas': int(punctuations_count[',']),
+        'punc_semicolons': int(punctuations_count[';']),
+        'punc_colons': int(punctuations_count[':']),
+        'punc_exclamations': int(punctuations_count['!']),
+        'punc_questions': int(punctuations_count['?']),
+        'punc_dashes': int(punctuations_count['-']),
+        'punc_open_par': int(punctuations_count['(']),
+        'punc_close_par': int(punctuations_count[')']),
+        'punc_double_quotes': int(punctuations_count['\"']),
+        'punc_apostrophes': int(punctuations_count['\'']),
+        'punc_tilda': int(punctuations_count['`']),
+        'punc_forward_slash': int(punctuations_count['/']),
+    }
+
     # Return list of punctuation counts
-    return list(punctuations_count.values())
+    return payload, list(punctuations_count.values())
 
 
 def analyze_sentence_lengths(sentences):
@@ -135,7 +162,14 @@ def analyze_sentence_lengths(sentences):
     count_under_avg = np.sum([length < average_length for length in sentence_lengths])
     count_avg = len(sentence_lengths) - count_over_avg - count_under_avg
 
-    return [count_over_avg, count_under_avg, count_avg, average_length]
+    payload = {
+        'sent_over_avg': float(count_over_avg),
+        'sent_under_avg': float(count_under_avg),
+        'sent_count_avg': float(count_avg),
+        'sent_avg_length': float(average_length),
+    }
+
+    return payload, [count_over_avg, count_under_avg, count_avg, average_length]
 
 
 def analyze_words(texts):
@@ -159,25 +193,44 @@ def analyze_words(texts):
     count_avg = len(word_lengths) - count_over_avg - count_under_avg
     ttr = len(set(words)) / len(words) if words else 0
 
-    return [rare_count, long_count, count_over_avg, count_under_avg, count_avg, ttr]
+    payload = {
+        'word_rare_count': int(rare_count),
+        'word_long_count': int(long_count),
+        'word_over_avg': float(count_over_avg),
+        'word_under_avg': float(count_under_avg),
+        'word_count_avg': float(count_avg),
+        'word_ttr': float(ttr),
+        'word_avg_length': float(average_length)
+    }
+
+    return payload, [rare_count, long_count, count_over_avg, count_under_avg, count_avg, ttr]
 
 
 def calculate_style_vector(texts):
     """
   Calculate the style vector of the texts
   """
-    punctuation_vec = count_punctuations(texts)  # Punctuations stylistic features
-    sentence_vec = analyze_sentence_lengths(texts)  # Sentences stylistic features
-    word_vec = analyze_words(texts)  # Words stylistic features
+    payload1, punctuation_vec = count_punctuations(texts)  # Punctuations stylistic features
+    payload2, sentence_vec = analyze_sentence_lengths(texts)  # Sentences stylistic features
+    payload3, word_vec = analyze_words(texts)  # Words stylistic features
     word_count = np.sum([len(text.split()) for text in texts])
 
     vector = np.concatenate((punctuation_vec, sentence_vec, word_vec))
 
-    return vector / word_count if word_count else vector
+    final_payload = {}
+    final_payload.update(payload1)
+    final_payload.update(payload2)
+    final_payload.update(payload3)
+    final_payload.update({'word_count': int(word_count)})
+
+    # DB.store_style_vector(user, filename, final_payload)
+
+    return final_payload, vector / word_count if word_count else vector
 
 
 def get_vectors(user, past_assign_filenames, w2v_model, is_past_assignment, vector_size):
     res = []
+    print("pastnames", past_assign_filenames)
     for filename in past_assign_filenames:
         # read the file from db using filename
         if filename[-4:] == '.npy':
@@ -185,12 +238,21 @@ def get_vectors(user, past_assign_filenames, w2v_model, is_past_assignment, vect
             print("Found Cached Vector, Reading from db", filename)
             res.append(text_vector_cached)
             continue
+        
+        if is_past_assignment:
+            text = DB.read_past_file(user, filename)
+            print("past text", text)
+        else:
+            filename = filename.split('/')[-1]
+            text = DB.read_current_assignment(user, filename)
+            print("current text", text)
 
-        text = DB.read_past_file(user, filename) if is_past_assignment else DB.read_current_assignment(user)
 
         # Compute text vectors
         w2v_vec = np.mean(convert_text_to_vector(text, w2v_model, vector_size), axis=0)
-        style_vec = calculate_style_vector(text)
+        print("Current2", text)
+        print(type(text))
+        final_payload, style_vec = calculate_style_vector(text)
 
         final_file_vector = np.concatenate((w2v_vec, style_vec), axis=None)
         res.append(final_file_vector)
@@ -201,6 +263,8 @@ def get_vectors(user, past_assign_filenames, w2v_model, is_past_assignment, vect
             print("Cached not found, Computing vector", filename)
             # vector has been calculated for a text, so we will cache it in DB
             cached_filename = filename.replace('.txt', '_cached.npy')
+            if cached_filename[-4:] != '.npy':
+                cached_filename += '_cached.npy'
 
             # Create an in-memory file
             buffer = io.BytesIO()
@@ -209,9 +273,13 @@ def get_vectors(user, past_assign_filenames, w2v_model, is_past_assignment, vect
             # Getting file_data & uploading to DB
             file_data = buffer.getvalue()
             DB.upload_cached_file(user, cached_filename, file_data)
+            DB.store_past_style_vector(user, filename, final_payload)
 
             print("Vector Cached to database", cached_filename)
             buffer.close()
+
+        else:
+            return final_payload, res
 
     return res
 
@@ -230,19 +298,23 @@ def build_corpus_and_vectorize_text_data(user, w2v_model, vector_size):
     }
 
     res = {}
+    final_payloads = []
     for key, val in tqdm(corpus.items(), total=len(corpus)):
         print()
         if len(val['unknown']) == 0:
             continue
+
+        final_payload, unknown_vecs = get_vectors(user, val['unknown'], w2v_model, False, vector_size)
+        final_payloads.append(final_payload)
         res[key] = {
             'known': get_vectors(user, val['known'], w2v_model, True, vector_size),
-            'unknown': get_vectors(user, val['unknown'], w2v_model, False, vector_size),
+            'unknown': unknown_vecs
         }
 
-    return res
+    return final_payloads, res
 
 
 def preprocess_dataset(user, current_environment, vector_size=300):
     word2vec_model = Word2Vec.load(current_environment + "w2v_model/word2vec.model")
-    test_data = build_corpus_and_vectorize_text_data(user, word2vec_model, vector_size)
-    return test_data
+    final_payloads, test_data = build_corpus_and_vectorize_text_data(user, word2vec_model, vector_size)
+    return final_payloads, test_data

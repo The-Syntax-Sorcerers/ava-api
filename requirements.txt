@@ -17,3 +17,4 @@ python-dotenv~=1.0.0
 storage3~=0.5.4
 mangum~=0.17.0
 tensorflow~=2.14.0
+pypdf2~=3.0.1
