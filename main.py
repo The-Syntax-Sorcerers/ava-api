@@ -1,4 +1,4 @@
-from db import User
+from db import User, DB
 from model import load_model
 from preprocess import preprocess_dataset
 import random
@@ -25,9 +25,18 @@ def base_endpoint():
 @app.get("/predict")
 def feed_forward(user_email: str, subject_id: str, assignment_id: str, user_id: str):
 
-    test_data = preprocess_dataset(User(user_email, subject_id, assignment_id, user_id), current_environment)
+    user = User(user_email, subject_id, assignment_id, user_id)
+    final_payloads, test_data = preprocess_dataset(user, current_environment)
+
     model = load_model(current_environment + 'model_weights')
-    predictions = model.get_predictions(test_data)
+
+    if not test_data[0]['known']:
+        predictions = [1]
+    else:
+        predictions = model.get_predictions(test_data)
+
+    for payload, prediction in zip(final_payloads, predictions):
+        DB.store_style_vector(user, payload, prediction)
 
     return JSONResponse({"message": "Prediction Success!!",
                          "Prediction": predictions[0]})
